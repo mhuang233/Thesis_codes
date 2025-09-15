@@ -1,3 +1,1 @@
-# Dissertation_codes
-
-Codes for MH's dissertation
+# Codes for MH's dissertation
