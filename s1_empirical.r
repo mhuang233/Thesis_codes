@@ -1,6 +1,5 @@
-# ::: STUDY 1: EMPIRICAL ::: #
+# ::: STUDY 1 -- EMPIRICAL ::: #
 
-# Setup and libraries
 {
   library(loo)
   library(rstanarm)
@@ -10,10 +9,10 @@
   library(bayesplot)
   library(tidyverse)
   options(mc.cores = parallel::detectCores())
-  set.seed(53705)
+  set.seed(seed)
 }
 
-# Load PISA 2018 data
+# Load PISA 2018
 df0 <- read.csv("pisa2018.BayesBook.csv")
 
 df <- df0 %>%
@@ -26,12 +25,12 @@ df <- df0 %>%
 sch <- table(df$SchoolID)
 dt0 <- subset(df, SchoolID %in% names(sch[sch > 10]))
 
-# Check final school distribution
+# Check school distribution
 dt0 %>%
   group_by(SchoolID) %>%
   summarise(n=n())
 
-# ::: REDUCED SAMPLE ANALYSIS ::: #
+# ::: REDUCED SAMPLE ANALYSIS (N = 500) ::: #
 # Sample 10 students per school, then select 50 schools
 dt <- dt0 %>% group_by(SchoolID) %>% slice_sample(n = 10)
 SchID <- dt$SchoolID 
@@ -42,29 +41,29 @@ sch_index <- which(SchID %in% sch_sample)
 
 df <- dt[sch_index, ]
 
-# Fit four candidate models
+# Fit candidate models
 bsm <- list()
 loo_bs <- list()
 
-# Model 1: Demographic perspective
+# Model 1: Demographic
 bsm[[1]] <- stan_lmer(
   PV1READ ~ Female + ESCS + HOMEPOS + ICTRES + (1 + ICTRES|SchoolID), data = df, 
   prior_intercept = student_t(3, 470, 100),
   iter = 10000, chains = 4, adapt_delta=.999, thin=10)
 
-# Model 2: Reading behavior perspective
+# Model 2: Reading behavior
 bsm[[2]] <- stan_lmer(
   PV1READ ~ JOYREAD + PISADIFF + SCREADCOMP + SCREADDIFF + (1|SchoolID),
   data = df, prior_intercept = student_t(3, 470, 100), iter = 10000, chains = 4,
   adapt_delta=.999, thin=10)
 
-# Model 3: Academic mindset perspective
+# Model 3: Academic mindset
 bsm[[3]] <- stan_lmer(
   PV1READ ~ METASUM + GFOFAIL + MASTGOAL + SWBP + WORKMAST + ADAPTIVITY + COMPETE + (1|SchoolID),
   data = df, prior_intercept = student_t(3, 470, 100), iter = 10000, chains = 4,
   adapt_delta=.999, thin=10)
 
-# Model 4: School climate perspective
+# Model 4: School climate
 bsm[[4]] <- stan_lmer(
   PV1READ ~ PERFEED + TEACHINT + BELONG + (1 + TEACHINT|SchoolID),
   data = df, prior_intercept = student_t(3, 470, 100), iter = 10000, chains = 4,
@@ -76,7 +75,7 @@ loo_bs[[2]] <- loo(log_lik(bsm[[2]]))
 loo_bs[[3]] <- loo(log_lik(bsm[[3]]))
 loo_bs[[4]] <- loo(log_lik(bsm[[4]]))
 
-# Compute ensemble weights dor stakcing-based methods
+# Ensemble weights for stakcing-based methods
 system.time(w_bs <- loo_model_weights(loo_bs, method = "stacking"))
 system.time(w_pbma <- loo_model_weights(loo_bs, method = "pseudobma", BB=FALSE))
 system.time(w_pbmabb <- loo_model_weights(loo_bs, method = "pseudobma"))
@@ -134,12 +133,11 @@ stan_bhs <- list(X = X, N = nrow(X), d = ncol(X), d_discrete = d_discrete,
                  lpd_point = lpd_point, K = ncol(lpd_point), tau_mu = 1,
                  tau_sigma = 1, tau_discrete = .5, tau_con = 1)
 
-# Fit BHS model
+# Fit stan
 fit_bhs <- stan("bhs_stan.stan", data = stan_bhs, chains = 4, iter = 10000)
 
 # Extract weights
 wts_bhs <- rstan::extract(fit_bhs, pars = 'w')$w
-w_bhs_r <- apply(wts_bhs, c(2,3), mean) 
 w_bhs_m <- as.matrix(apply(wts_bhs, 3, mean))
 
 ypred_bhs_r <- matrix(NA, nrow = n_draws, ncol = nobs(bsm[[1]]))
@@ -260,7 +258,6 @@ stan_bhs <- list(X = X, N = nrow(X), d = ncol(X), d_discrete = d_discrete,
 fit_bhs <- stan("bhs_stan.stan", data = stan_bhs, chains = 4, iter = 10000)
 
 wts_bhs <- rstan::extract(fit_bhs, pars = 'w')$w
-w_bhs_r <- apply(wts_bhs, c(2,3), mean)
 w_bhs_m <- as.matrix(apply(wts_bhs, 3, mean))
 
 ypred_bhs_r <- matrix(NA, nrow = n_draws, ncol = nobs(bsm[[1]]))

@@ -102,7 +102,7 @@ bms_all <- do.call(list, mget(f))
 d <- ls(pattern = "loglik_x", all.names = T)
 loglik_all <- do.call(list, mget(d))
 
-# Compute LOO for all models
+# Compute LOO across models
 time_loo <- system.time(loo_bms <- lapply(loglik_all, loo, cores = 4))
 
 # Compute ensemble weights
@@ -183,25 +183,18 @@ kld4 <- KLD(d4, d0)$sum.KLD.py.px
 ws <- data.frame(as.matrix(w_bs), as.matrix(w_pbma), as.matrix(w_pbmabb), w_bhs_m)
 klds <- rbind(kld1, kld2, kld3, kld4) %>% as.data.frame()
 
-# Timing
-time <- rbind(t(data.matrix(time_bs)), t(data.matrix(time_pbma)), 
-              t(data.matrix(time_pbmabb)), t(data.matrix(time_bhs))) %>% as.data.frame()
-
 rnames <- c("bs","pbma", "pbmabb", "bhs")  
 rownames(klds) <- rnames
 colnames(ws) <- rnames
-rownames(time) <- rnames
 
 # Save
 assign(paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_ws"), ws)
 assign(paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_kld"), klds)
-assign(paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_time"), time)
 
 sw <- paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_ws")
 dlk <- paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_kld")
-emit <- paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_time")
 
-save(list = c(sw,dlk,emit), file = paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_out.RData"))
+save(list = c(sw,dlk), file = paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_out.RData"))
 
 file.copy(from = paste0("rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_out.RData"),
           to = paste0("/staging/mhuang233/rep_", rep, "_seed", c, "_", ni, "_", nj, "_sd", icc, "_sigma", sigma, "_out.RData"))

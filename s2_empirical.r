@@ -1,5 +1,5 @@
 
-# ::: STUDY 2: EMPIRICAL ::: #
+# ::: STUDY 2 -- EMPIRICAL ::: #
 
 {
   rm(list = ls())
@@ -13,12 +13,13 @@
   rstan_options(auto_write = TRUE)
 }
 
-# Load
+# Load data
 load("inputs.RData")
 nrow(dt)
 uni_sch <- dt$schoolid %>% unique() 
 nj <- length(uni_sch)
 
+# Rename variables for simplicity
 dt <- dt %>%
   mutate(
     x1 = escs,              
@@ -33,12 +34,12 @@ dt <- dt %>%
     schoolid_map = match(schoolid, uni_sch) 
   )
 
-# CV
+# CV 80/20 split
 train_index <- list()
 test_index <- list()
 
 for (f in 1:10) {
-  set.seed(233 + f)
+  set.seed(seed + f)
   
   train_students <- c()
   test_students <- c()
@@ -76,23 +77,37 @@ for (f in 1:10) {
   test_index[[f]] <- which(dt$childid %in% test_students)
 }
 
-# model fit
+# Model fit
 stan_models <- list(
   # Model 1: Random intercept only
   m1 = "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; 
+    real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; 
+    int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
-    real gamma0; vector[9] gammas; vector[J_train] u0_raw; real<lower=0> tau0; real<lower=0> sigma;
+    real gamma0; 
+    vector[9] gammas; 
+    vector[J_train] u0_raw; 
+    real<lower=0> tau0; 
+    real<lower=0> sigma;
   }
   transformed parameters {
     vector[J_train] u0 = tau0 * u0_raw;
   }
   model {
-    gamma0 ~ normal(0, 1); gammas ~ normal(0, 0.5); tau0 ~ exponential(3); sigma ~ exponential(2);
+    gamma0 ~ normal(0, 1); 
+    gammas ~ normal(0, 0.5); 
+    tau0 ~ exponential(3); 
+    sigma ~ exponential(2);
     u0_raw ~ std_normal();
     vector[N_train] mu_train;
     for (n in 1:N_train) {
@@ -102,8 +117,10 @@ stan_models <- list(
     std_y_train ~ normal(mu_train, sigma);
   }
   generated quantities {
-    vector[N_train] y_pred_train; vector[N_train] log_lik_train;
-    vector[N_test] y_pred_test; vector[N_test] log_lik_test;
+    vector[N_train] y_pred_train; 
+    vector[N_train] log_lik_train;
+    vector[N_test] y_pred_test; 
+    vector[N_test] log_lik_test;
     for (n in 1:N_train) {
       int j = school_train[n];
       real mu_train = gamma0 + X_train[n] * gammas + u0[j];
@@ -123,20 +140,33 @@ stan_models <- list(
   # Model 2: Random intercept + ESCS slope (x1)
   m2 = "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; 
+    int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
-    real gamma0; vector[9] gammas; matrix[2, J_train] u_raw;
-    vector<lower=0>[2] tau; cholesky_factor_corr[2] L_u; real<lower=0> sigma;
+    real gamma0; 
+    vector[9] gammas; 
+    matrix[2, J_train] u_raw;
+    vector<lower=0>[2] tau; 
+    cholesky_factor_corr[2] L_u; 
+    real<lower=0> sigma;
   }
   transformed parameters {
     matrix[J_train, 2] u = (diag_pre_multiply(tau, L_u) * u_raw)';
   }
   model {
-    gamma0 ~ normal(0, 1); gammas ~ normal(0, 0.5); tau ~ exponential(3);
-    L_u ~ lkj_corr_cholesky(1); sigma ~ exponential(2);
+    gamma0 ~ normal(0, 1); 
+    gammas ~ normal(0, 0.5); 
+    tau ~ exponential(3);
+    L_u ~ lkj_corr_cholesky(1); 
+    sigma ~ exponential(2);
     to_vector(u_raw) ~ std_normal();
     vector[N_train] mu_train;
     for (n in 1:N_train) {
@@ -171,20 +201,35 @@ stan_models <- list(
   # Model 3: Random intercept + TEACHINT slope (x5)
   m3 = "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; 
+    real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; 
+    int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; 
+    int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
-    real gamma0; vector[9] gammas; matrix[2, J_train] u_raw;
-    vector<lower=0>[2] tau; cholesky_factor_corr[2] L_u; real<lower=0> sigma;
+    real gamma0; 
+    vector[9] gammas; 
+    matrix[2, J_train] u_raw;
+    vector<lower=0>[2] tau; 
+    cholesky_factor_corr[2] L_u; 
+    real<lower=0> sigma;
   }
   transformed parameters {
     matrix[J_train, 2] u = (diag_pre_multiply(tau, L_u) * u_raw)';
   }
   model {
-    gamma0 ~ normal(0, 1); gammas ~ normal(0, 0.5); tau ~ exponential(3);
-    L_u ~ lkj_corr_cholesky(1); sigma ~ exponential(2);
+    gamma0 ~ normal(0, 1); 
+    gammas ~ normal(0, 0.5); 
+    tau ~ exponential(3);
+    L_u ~ lkj_corr_cholesky(1); 
+    sigma ~ exponential(2);
     to_vector(u_raw) ~ std_normal();
     vector[N_train] mu_train;
     for (n in 1:N_train) {
@@ -219,9 +264,17 @@ stan_models <- list(
   # Model 4: Random intercept + ADAPTIVITY slope (x6)
   m4 = "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; 
+    real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; 
+    int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; 
+    int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
     real gamma0; vector[9] gammas; matrix[2, J_train] u_raw;
@@ -267,20 +320,34 @@ stan_models <- list(
   # Model 5: Random intercept + BEINGBULLIED slope (x7)
   m5 = "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; 
+    real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; 
+    int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
-    real gamma0; vector[9] gammas; matrix[2, J_train] u_raw;
-    vector<lower=0>[2] tau; cholesky_factor_corr[2] L_u; real<lower=0> sigma;
+    real gamma0; 
+    vector[9] gammas; 
+    matrix[2, J_train] u_raw;
+    vector<lower=0>[2] tau; 
+    cholesky_factor_corr[2] L_u; 
+    real<lower=0> sigma;
   }
   transformed parameters {
     matrix[J_train, 2] u = (diag_pre_multiply(tau, L_u) * u_raw)';
   }
   model {
-    gamma0 ~ normal(0, 1); gammas ~ normal(0, 0.5); tau ~ exponential(3);
-    L_u ~ lkj_corr_cholesky(1); sigma ~ exponential(2);
+    gamma0 ~ normal(0, 1); 
+    gammas ~ normal(0, 0.5); 
+    tau ~ exponential(3);
+    L_u ~ lkj_corr_cholesky(1); 
+    sigma ~ exponential(2);
     to_vector(u_raw) ~ std_normal();
     vector[N_train] mu_train;
     for (n in 1:N_train) {
@@ -290,8 +357,10 @@ stan_models <- list(
     std_y_train ~ normal(mu_train, sigma);
   }
   generated quantities {
-    vector[N_train] y_pred_train; vector[N_train] log_lik_train;
-    vector[N_test] y_pred_test; vector[N_test] log_lik_test;
+    vector[N_train] y_pred_train; 
+    vector[N_train] log_lik_train;
+    vector[N_test] y_pred_test; 
+    vector[N_test] log_lik_test;
     for (n in 1:N_train) {
       int j = school_train[n];
       real mu_train = gamma0 + X_train[n] * gammas + u[j, 1] + u[j, 2] * X_train[n, 7];
@@ -315,20 +384,35 @@ stan_models <- list(
   # Model 6: Random intercept + IMMIG slope (x9)
   m6 = "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; 
+    real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; 
+    int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; 
+    int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
-    real gamma0; vector[9] gammas; matrix[2, J_train] u_raw;
-    vector<lower=0>[2] tau; cholesky_factor_corr[2] L_u; real<lower=0> sigma;
+    real gamma0; 
+    vector[9] gammas; 
+    matrix[2, J_train] u_raw;
+    vector<lower=0>[2] tau; 
+    cholesky_factor_corr[2] L_u; 
+    real<lower=0> sigma;
   }
   transformed parameters {
     matrix[J_train, 2] u = (diag_pre_multiply(tau, L_u) * u_raw)';
   }
   model {
-    gamma0 ~ normal(0, 1); gammas ~ normal(0, 0.5); tau ~ exponential(3);
-    L_u ~ lkj_corr_cholesky(1); sigma ~ exponential(2);
+    gamma0 ~ normal(0, 1); 
+    gammas ~ normal(0, 0.5); 
+    tau ~ exponential(3);
+    L_u ~ lkj_corr_cholesky(1); 
+    sigma ~ exponential(2);
     to_vector(u_raw) ~ std_normal();
     vector[N_train] mu_train;
     for (n in 1:N_train) {
@@ -338,8 +422,10 @@ stan_models <- list(
     std_y_train ~ normal(mu_train, sigma);
   }
   generated quantities {
-    vector[N_train] y_pred_train; vector[N_train] log_lik_train;
-    vector[N_test] y_pred_test; vector[N_test] log_lik_test;
+    vector[N_train] y_pred_train; 
+    vector[N_train] log_lik_train;
+    vector[N_test] y_pred_test;
+    vector[N_test] log_lik_test;
     for (n in 1:N_train) {
       int j = school_train[n];
       real mu_train = gamma0 + X_train[n] * gammas + u[j, 1] + u[j, 2] * X_train[n, 9];
@@ -361,7 +447,7 @@ stan_models <- list(
   "
 )
 
-
+# Function for fitting m1 - m6
 fit_model <- function(fold, model_num, model_code) {
   train_idx <- train_index[[fold]]
   test_idx <- test_index[[fold]]
@@ -437,7 +523,7 @@ fit_model <- function(fold, model_num, model_code) {
     object = model_stan, data = stan_data,
     iter = 3000, chains = 4, warmup = 2000,
     control = list(adapt_delta = 0.90, max_treedepth = 12),
-    init = init_fun, seed = 233, refresh = 0
+    init = init_fun, seed = seed, refresh = 0
   )
   
   time_elapsed <- as.numeric(difftime(Sys.time(), time_start, units = "secs"))
@@ -462,6 +548,7 @@ fit_model <- function(fold, model_num, model_code) {
 all_models <- list()
 total_model_time <- 0
 
+# Combine modle fits for laster analysis
 for (f in 1:10) {
   fold_results <- list()
   
@@ -474,7 +561,6 @@ for (f in 1:10) {
   
   all_models[[f]] <- fold_results
 }
-
 
 all_fold_results <- list()
 
@@ -560,12 +646,19 @@ for (f in 1:10) {
   
   bhs_stan_code <- "
   data {
-    int<lower=1> N_train; int<lower=1> N_test; int<lower=2> K; int<lower=1> P;
-    matrix[N_train, P] X_train; matrix[N_test, P] X_test; matrix[N_train, K] lpd_point;
+    int<lower=1> N_train; 
+    int<lower=1> N_test; 
+    int<lower=2> K; 
+    int<lower=1> P;
+    matrix[N_train, P] X_train; 
+    matrix[N_test, P] X_test; 
+    matrix[N_train, K] lpd_point;
   }
   parameters {
-    matrix[K-1, P] beta_raw; real<lower=0> tau_global;
-    vector<lower=0>[K-1] tau_model; vector<lower=0>[P] tau_pred;
+    matrix[K-1, P] beta_raw; 
+    real<lower=0> tau_global;
+    vector<lower=0>[K-1] tau_model; 
+    vector<lower=0>[P] tau_pred;
   }
   transformed parameters {
     matrix[K-1, P] beta;
@@ -576,28 +669,38 @@ for (f in 1:10) {
     }
   }
   model {
-    tau_global ~ normal(0, 0.05); tau_model ~ normal(0, 0.1); tau_pred ~ normal(0, 0.1);
+    tau_global ~ normal(0, 0.05); 
+    tau_model ~ normal(0, 0.1); 
+    tau_pred ~ normal(0, 0.1);
     to_vector(beta_raw) ~ std_normal();
-    matrix[N_train, K] f; matrix[N_train, K] log_weights;
-    f[, 1:(K-1)] = X_train * beta'; f[, K] = rep_vector(0, N_train);
+    matrix[N_train, K] f; 
+    matrix[N_train, K] log_weights;
+    f[, 1:(K-1)] = X_train * beta'; 
+    f[, K] = rep_vector(0, N_train);
     log_weights = f + lpd_point;
     for(n in 1:N_train) { target += log_sum_exp(log_weights[n]); }
   }
   generated quantities {
-    matrix[N_test, K] weights_test; matrix[N_train, K] weights_train;
-    matrix[N_test, K] f_test; f_test[, 1:(K-1)] = X_test * beta'; f_test[, K] = rep_vector(0, N_test);
+    matrix[N_test, K] weights_test; 
+    matrix[N_train, K] weights_train;
+    matrix[N_test, K] f_test; 
+    f_test[, 1:(K-1)] = X_test * beta'; 
+    f_test[, K] = rep_vector(0, N_test);
     for(n in 1:N_test) { weights_test[n] = to_row_vector(softmax(to_vector(f_test[n]))); }
-    matrix[N_train, K] f_train; f_train[, 1:(K-1)] = X_train * beta'; f_train[, K] = rep_vector(0, N_train);
+    matrix[N_train, K] f_train; 
+    f_train[, 1:(K-1)] = X_train * beta'; 
+    f_train[, K] = rep_vector(0, N_train);
     for(n in 1:N_train) { weights_train[n] = to_row_vector(softmax(to_vector(f_train[n]))); }
   }
   "
-  
+  # bhs data list
   bhs_stan_data <- list(
     N_train = length(Y_train), N_test = length(Y_test), K = 6, P = ncol(X_train_scaled),
     X_train = X_train_scaled, X_test = X_test_scaled, lpd_point = lpd_train
   )
   
   bhs_model <- stan_model(model_code = bhs_stan_code)
+  
   bhs_fit <- sampling(
     object = bhs_model, data = bhs_stan_data,
     iter = 2000, chains = 4, warmup = 1000,
@@ -637,6 +740,7 @@ for (f in 1:10) {
   bart_context <- paste("bart(", paste(contextual_vars, collapse = " + "), ")")
   
   interaction_terms <- character(6)
+  
   for(i in 1:6) {
     interaction_terms[i] <- paste(model_names[i], "*", bart_context)
   }
@@ -685,20 +789,35 @@ for (f in 1:10) {
   
   m7_stan_code <- "
   data {
-    int<lower=1> N_train; int<lower=1> J_train; vector[N_train] std_y_train;
-    real avg_y; real sd_y; matrix[N_train, 9] X_train; int<lower=1, upper=J_train> school_train[N_train];
-    int<lower=1> N_test; int<lower=1> J_test; matrix[N_test, 9] X_test; int<lower=1, upper=J_test> school_test[N_test];
+    int<lower=1> N_train; 
+    int<lower=1> J_train; 
+    vector[N_train] std_y_train;
+    real avg_y; 
+    real sd_y; 
+    matrix[N_train, 9] X_train; 
+    int<lower=1, upper=J_train> school_train[N_train];
+    int<lower=1> N_test; 
+    int<lower=1> J_test; 
+    matrix[N_test, 9] X_test; 
+    int<lower=1, upper=J_test> school_test[N_test];
   }
   parameters {
-    real gamma0; vector[9] gammas; matrix[6, J_train] u_raw;
-    vector<lower=0>[6] tau; cholesky_factor_corr[6] L_u; real<lower=0> sigma;
+    real gamma0; 
+    vector[9] gammas; 
+    matrix[6, J_train] u_raw;
+    vector<lower=0>[6] tau; 
+    cholesky_factor_corr[6] L_u; 
+    real<lower=0> sigma;
   }
   transformed parameters {
     matrix[J_train, 6] u = (diag_pre_multiply(tau, L_u) * u_raw)';
   }
   model {
-    gamma0 ~ normal(0, 1); gammas ~ normal(0, 0.5); tau ~ exponential(3);
-    L_u ~ lkj_corr_cholesky(1); sigma ~ exponential(2);
+    gamma0 ~ normal(0, 1); 
+    gammas ~ normal(0, 0.5); 
+    tau ~ exponential(3);
+    L_u ~ lkj_corr_cholesky(1); 
+    sigma ~ exponential(2);
     to_vector(u_raw) ~ std_normal();
     vector[N_train] mu_train;
     for (n in 1:N_train) {
@@ -736,7 +855,7 @@ for (f in 1:10) {
   }
   "
   
-  # Reuse stan_data from model fitting with proper school mappings
+  # School mappings
   first_model_data <- fit_model(f, 1, stan_models$m1)  # Get proper data structure
   
   model7 <- stan_model(model_code = m7_stan_code)
@@ -771,8 +890,7 @@ for (f in 1:10) {
   time_m7 <- as.numeric(difftime(Sys.time(), time_start_m7, units = "secs"))
   
   
-  # calculate evaluation
-  
+  # calculate evaluation metrics
   calc_metrics <- function(pred_train, pred_test, q025_train, q975_train, q025_test, q975_test, time_run) {
     train_var <- var(Y_train)
     
@@ -823,6 +941,6 @@ summary_stats <- combined_results %>%
   ) %>%
   arrange(mean_out_rmse)
 
-# Save comprehensive results
+# Save
 save(combined_results, summary_stats, bma_weights, stacking_weights,
      file = "study2_empirical_results_complete.RData")
