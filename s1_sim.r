@@ -9,7 +9,6 @@
   library(tidyverse)
   options(scipen = 999)
   options(mc.cores = parallel::detectCores())
-  
 }
 
 # CHTC command
@@ -35,7 +34,7 @@ gamma03 <- -2
 gamma04 <- 8
 u_0 <- sqrt(icc)        
 w_0 <- sqrt(1-icc)
-sigma <- sigma          # 5
+sigma <- sigma
 
 x <- matrix(99, nrow = ni*nj, ncol = 4)
 y <- matrix(99, nrow = ni*nj, ncol = 1) 
@@ -44,10 +43,10 @@ U <- matrix(99, nrow = ni*nj, ncol = 3)
 W <- matrix(99, nrow = ni*nj, ncol = 4)
 sim <- matrix(99, nrow = ni*nj, ncol = 9) 
 
-# Generate multilevel data
+# DGP
 df <- dgf(ni, nj, gamma00, gamma01, gamma02, gamma03, gamma04, u_0, w_0, sigma)
 
-# Extract leave-one-out pointwise densities
+# Leave-one-out pointwise densities
 extract_lpd <- function(x){
   g <- x$pointwise[, "elpd_loo"]
   return(g)
@@ -88,8 +87,6 @@ for (k in 1:15){
   
   # Extract log-likelihood
   b <- log_lik(a, merge_chains = FALSE)
-  
-  # Store
   assign(paste0("bms_", var_names[k]), a)
   assign(paste0("loglik_", var_names[k]), b)
   
