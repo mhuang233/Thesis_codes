@@ -104,24 +104,45 @@ train_index <- list()
 test_index <- list()
 
 for (fold in 1:10) {
-  set.seed(233 + fold)
+  set.seed(seed + fold)
   
-  # School-level split
-  school_ids <- 1:nj
-  schools_shuffled <- sample(school_ids)
-  n_train_schools <- round(length(school_ids) * 0.8)
+  train_students <- c()
+  test_students <- c()
   
-  train_schools <- schools_shuffled[1:n_train_schools]
-  test_schools <- schools_shuffled[(n_train_schools + 1):length(school_ids)]
-  
-  # Student-level split within schools
-  train_school_data <- df_sim %>% filter(schoolid_map %in% train_schools)
-  train_students <- sample(train_school_data$childid, 
-                           size = round(nrow(train_school_data) * 0.8))
-  
-  test_school_data <- df_sim %>% filter(schoolid_map %in% test_schools)
-  test_students <- sample(test_school_data$childid,
-                          size = round(nrow(test_school_data) * 0.8))
+  # For each school, split students within that school
+  for (school in 1:nj) {
+    
+    school_students <- df_sim %>% 
+      filter(schoolid_map == school) %>% 
+      pull(childid)
+
+    if (length(school_students) == 0) next
+    school_students_shuffled <- sample(school_students)
+    
+    n_students <- length(school_students_shuffled)
+    
+    if (n_students == 1) {
+      # If only 1 student, put in training
+      train_students <- c(train_students, school_students_shuffled[1])
+    } else if (n_students == 2) {
+      # If 2 students, 1 train, 1 test
+      train_students <- c(train_students, school_students_shuffled[1])
+      test_students <- c(test_students, school_students_shuffled[2])
+    } else {
+      # 3+ students: use 80/20 split
+      n_train <- max(1, round(n_students * 0.8))
+      n_test <- n_students - n_train
+      
+      # Ensure at least 1 test student
+      if (n_test == 0) {
+        n_train <- n_students - 1
+        n_test <- 1
+      }
+      
+      train_students <- c(train_students, school_students_shuffled[1:n_train])
+      test_students <- c(test_students, school_students_shuffled[(n_train + 1):n_students])
+    }
+  }
   
   train_index[[fold]] <- which(df_sim$childid %in% train_students)
   test_index[[fold]] <- which(df_sim$childid %in% test_students)

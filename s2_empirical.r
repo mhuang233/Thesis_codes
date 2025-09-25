@@ -548,7 +548,7 @@ fit_model <- function(fold, model_num, model_code) {
 all_models <- list()
 total_model_time <- 0
 
-# Combine modle fits for laster analysis
+# Combine modle fits for later analysis
 for (f in 1:10) {
   fold_results <- list()
   
