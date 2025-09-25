@@ -148,6 +148,18 @@ for (fold in 1:10) {
   test_index[[fold]] <- which(df_sim$childid %in% test_students)
 }
 
+# Verification: Check that all schools appear in both sets
+train_schools <- df_sim[train_index[[f]], ] %>% pull(schoolid_map) %>% unique()
+test_schools <- df_sim[test_index[[f]], ] %>% pull(schoolid_map) %>% unique()
+
+cat("Fold", f, ":\n")
+cat("  Training students:", length(train_index[[f]]), "\n")
+cat("  Test students:", length(test_index[[f]]), "\n")
+cat("  Schools in training:", length(train_schools), "\n")
+cat("  Schools in testing:", length(test_schools), "\n")
+cat("  Schools in both:", length(intersect(train_schools, test_schools)), "\n")
+cat("  All schools covered:", length(union(train_schools, test_schools)) == nj, "\n\n")
+
 save(dt, train_index, test_index, df_sim,
      file = paste0("sim_math_icc_", icc, "_sigma_", sigma, ".RData"))
 
